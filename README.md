@@ -1,0 +1,1 @@
+Trabajo final para la materia _Inteligencia Artificial_, de la carrera Licenciatura en Sistemas de Información, dictada en la __Universidad Nacional de Luján__.
