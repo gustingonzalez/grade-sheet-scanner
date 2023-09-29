@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>INTELIGENCIA ARTIFICIAL (11418)</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="{{ url_for('static', filename='index.css') }}"
+    />
+  </head>
+
+  <body>
+    <div class="title-container">
+      <div class="title-text">
+        <h1 id="subject">INTELIGENCIA ARTIFICIAL (11418)</h1>
+        <h2>Licenciatura en Sistemas de Información (UNLu)</h2>
+      </div>
+    </div>
+
+    <div id="instructions" class="message">
+      Ingrese un acta válida en el alimentador de documentos o escáner de cama
+      (según se encuentre configurada la aplicación), y presione el botón
+      'escanear' para comenzar el proceso.
+    </div>
+
+    <div id="scan-in-progress-message" style="display: none" class="message">
+      Por favor, aguarde mientras se escanea y procesa la imagen...
+    </div>
+
+    <div id="scan-error-message" style="display: none" class="message">
+      No se ha podido procesar el documento, por favor:
+      <ol>
+        <li>Verifique el estado del dispositivo.</li>
+        <li>
+          Si está utilizando el alimentador de documentos, asegúrese de que esté
+          correctamente cargado.
+        </li>
+        <li>
+          Si el escaneo se ha llevado a cabo correctamente, pero aún así
+          visualiza este error, verifique que el documento sea un acta de
+          calificaciones válida.
+        </li>
+      </ol>
+    </div>
+    <table id="students-table" class="shown-after-scan">
+      <tbody></tbody>
+    </table>
+
+    <div id="buttons">
+      <button type="button" id="scan-button">Escanear</button>
+      <button type="button" id="csv-button" class="shown-after-scan">
+        CSV
+      </button>
+      <button type="button" id="clear-button" class="shown-after-scan">
+        Limpiar
+      </button>
+    </div>
+
+    <script src="{{ url_for('static', filename='students.json') }}"></script>
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+  </body>
+</html>
