@@ -290,9 +290,10 @@ def extract_content_from_cell(image, cell_rect):
     kernel = np.ones((5, 5), np.uint8)
     cell = cv2.erode(cell, kernel)
 
-    # Finds contours in the image.
-    edges_image = cv2.Canny(cell, 100, 150)
-    contours, _ = cv2.findContours(edges_image.copy(),
+    # Finds contours in the image, inverting its colors (the 'find contours'
+    # method works better with black background rather than a white one).
+    inverted_color_cell = cv2.bitwise_not(cell)
+    contours, _ = cv2.findContours(inverted_color_cell.copy(),
                                    cv2.RETR_TREE,
                                    cv2.CHAIN_APPROX_SIMPLE)
 
