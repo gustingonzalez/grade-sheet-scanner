@@ -296,16 +296,21 @@ def extract_content_from_cell(image, cell_rect):
                                    cv2.RETR_TREE,
                                    cv2.CHAIN_APPROX_SIMPLE)
 
-    # Creates a rectangle for each contour, keeping those that are 'probably'
-    # contains a digit. To avoid incorrect object, filters out rectangles whose
-    # area is less than 1.75% of the total image area.
+    # Creates a rectangle for each contour, keeping those that 'probably'
+    # contains a digit. To avoid incorrect objects, filters out rectangles
+    # whose area is less than 1.8% and greater than 60% of the total cell area.
+    # The upper bound is because, even though the cell borders are cleaned up,
+    # if there are 'remnants' of them, they can be detected as contours.
     rects = []
     cell_area = cell.shape[0] * cell.shape[1]
-    digit_threshold = 0.0175
+
+    digit_upper_threshold = 0.6
+    digit_lower_threshold = 0.018
     for contour in contours:
         bounding_box = cv2.boundingRect(contour)
         x, y, w, h = bounding_box
-        if ((w*h)/cell_area > digit_threshold):
+        ratio = (w*h)/cell_area
+        if (ratio >= digit_lower_threshold and ratio <= digit_upper_threshold):
             rects.append(bounding_box)
 
     if len(rects) == 0:
