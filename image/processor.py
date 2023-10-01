@@ -236,7 +236,7 @@ def extract_grades_image(image, grades_rect):
     # border size has been optimized for a height of 1005 pixels. The 'assert'
     # statement must be changed when modifying the last one.
     assert (normalized_heigth == 1005)
-    border_size = 10
+    border_size = 12
     cropped_image = cropped_image[border_size:-
                                   border_size, border_size:-border_size]
 
