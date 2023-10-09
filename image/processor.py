@@ -16,22 +16,23 @@ def resize_image_based_on_height(image, new_height):
     return resized_image
 
 
-def prepare_and_binarize_image(image):
+def prepare_image(image):
     # Removes some noise.
-    smoothed_image = cv2.GaussianBlur(image, (5, 5), 0)
+    smoothed_image = cv2.GaussianBlur(image, (3, 3), 0)
 
     # Converts the image to grayscale.
     gray_image = cv2.cvtColor(smoothed_image, cv2.COLOR_BGR2GRAY)
 
-    # Binarizes the image.
+    # Creates a new binarized image.
     binarized_image = cv2.adaptiveThreshold(
-        gray_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 21, 21)
+        gray_image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 21, 17)
 
     # Resizes the image to keep it in a moderately 'known' domain.
     new_height = 2500
-    resized_image = resize_image_based_on_height(binarized_image, new_height)
+    binarized_image_resized = resize_image_based_on_height(binarized_image, new_height)
+    gray_image_resized = resize_image_based_on_height(gray_image, new_height)
 
-    return resized_image
+    return binarized_image_resized, gray_image_resized
 
 
 def clear_irrelevant_image_regions(image):
@@ -225,7 +226,7 @@ def extract_grades_image(image, grades_rect):
         grades_image, normalized_heigth)
 
     # Crops the image to content.
-    cropped_image = crop_grades_image_to_content(resized_image)
+    # cropped_image = crop_grades_image_to_content(resized_image)
 
     # Note: it attempted to remove borders using white dilation, but, given the
     # 'known domain,' it is more effective to remove them based on their size.
@@ -236,13 +237,12 @@ def extract_grades_image(image, grades_rect):
     # border size has been optimized for a height of 1005 pixels. The 'assert'
     # statement must be changed when modifying the last one.
     assert (normalized_heigth == 1005)
-    border_size = 12
-    cropped_image = cropped_image[border_size:-
+    border_size = 18
+    resized_image = resized_image[border_size:-
                                   border_size, border_size:-border_size]
 
     # Resizes the image again, and recomputes the grades rectangle.
-    resized_image = resize_image_based_on_height(
-        cropped_image, normalized_heigth)
+    resized_image = resize_image_based_on_height(resized_image, normalized_heigth)
     y, x = resized_image.shape[0:2]
     new_grades_rect = (0, 0, (x), (y))
     return resized_image, new_grades_rect
@@ -274,39 +274,43 @@ def compute_digit_cells_rects(grades_rect):
 
 
 def extract_content_from_cell(image, cell_rect):
-    # Extracts the cell region.
+    # 1. Extracts the cell region.
     x, y, width, height = cell_rect
     cell = image[y:y+height, x:x+width]
+
+    # 2. Uses an auxiliar version of the cell to get the elements contours.
+    aux_cell = cv2.GaussianBlur(cell, (5, 5), 0)
 
     # WARNING: counter-intuitive. Erodes the black elements of the image, by
     # using a kernel that 'dilates' the white color. This tries to remove some
     # noise.
-    kernel = np.ones((1, 1), np.uint8)
-    cell = cv2.dilate(cell, kernel)
+    kernel = np.ones((2, 2), np.uint8)
+    aux_cell = cv2.dilate(aux_cell, kernel)
 
     # WARNING: counter-intuitive. Dilates the black elements (presumably
-    # digits) of the image, by using a kernel that 'erodes' the white color.
-    # This attemps to be more easy to extract the digits.
-    kernel = np.ones((5, 5), np.uint8)
-    cell = cv2.erode(cell, kernel)
+    # digits) of the binarized image, by using a kernel that 'erodes' the white
+    # color. This attemps to be more easy to extract the digits.
+    kernel = np.ones((3, 3), np.uint8)
+    aux_cell = cv2.erode(aux_cell, kernel)
 
-    # Finds contours in the image, inverting its colors (the 'find contours'
-    # method works better with black background rather than a white one).
-    inverted_color_cell = cv2.bitwise_not(cell)
+    # Finds contours in the auxiliar cell, inverting its colors (the 'find
+    # contours' method works better with a black background rather than a white
+    # one).
+    inverted_color_cell = cv2.bitwise_not(aux_cell)
     contours, _ = cv2.findContours(inverted_color_cell.copy(),
                                    cv2.RETR_TREE,
                                    cv2.CHAIN_APPROX_SIMPLE)
 
-    # Creates a rectangle for each contour, keeping those that 'probably'
+    # 3. Creates a rectangle for each contour, keeping those that 'probably'
     # contains a digit. To avoid incorrect objects, filters out rectangles
-    # whose area is less than 1.8% and greater than 60% of the total cell area.
+    # whose area is less than 5% and greater than 60% of the total cell area.
     # The upper bound is because, even though the cell borders are cleaned up,
     # if there are 'remnants' of them, they can be detected as contours.
     rects = []
     cell_area = cell.shape[0] * cell.shape[1]
 
-    digit_upper_threshold = 0.6
-    digit_lower_threshold = 0.018
+    digit_upper_threshold = 0.60
+    digit_lower_threshold = 0.05
     for contour in contours:
         bounding_box = cv2.boundingRect(contour)
         x, y, w, h = bounding_box
@@ -317,17 +321,41 @@ def extract_content_from_cell(image, cell_rect):
     if len(rects) == 0:
         return None
 
+    # 4. Prepares the digit for its extraction.
+
+    # Dilates the content of the cell, by using a kernel that 'erodes' the
+    # white color. Then, creates an equalized version of the image, adjusting
+    # its contrast (alpha) and brightness (beta).
+    equalized_cell = cv2.convertScaleAbs(cell, alpha=1, beta=-75)
+    aux_cell = equalized_cell
+
+    # Generates a mask that extracts the cell's content. Note that, at this
+    # step, the background is black. In this case, binarizing the image could
+    # also be an option, but the idea is to preserve the original pixel
+    # intensity of the content.
+    mask = cv2.adaptiveThreshold(
+        aux_cell, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 21, 1)
+    inverted_mask = cv2.bitwise_not(mask)
+    cell = cv2.bitwise_or(equalized_cell, equalized_cell, mask=inverted_mask)
+
+    # Replaces the black background with a white one.
+    white_background = np.zeros_like(cell, dtype=np.uint8)
+    white_background.fill(255)
+    cell += cv2.bitwise_and(white_background, white_background, mask=mask)
+
+    # Dilates the black elements, by using a kernel that 'erodes' the white
+    # color.
+    kernel = np.ones((3, 3), np.uint8)
+    dilated_cell = cv2.erode(cell, kernel)
+
+    # 5. Extracts the digit.
+
     # Keeps the 'largest' rectangle among the detected ones.
     rects.sort(key=lambda rect: rect[2] * rect[3], reverse=True)
     max_rectangle = rects[0]
 
-    # Once the digits has been extracted, erodes them slightly by dilating the
-    # white color.
-    kernel = np.ones((3, 3), np.uint8)
-    cell = cv2.dilate(cell, kernel)
-
     x, y, w, h = max_rectangle
-    content = cell[y:y+h, x:x+w]
+    content = dilated_cell[y:y+h, x:x+w]
     return content
 
 
@@ -346,43 +374,55 @@ def extract_cell_contents(image, cells_rects):
 
 # Main function.
 def extract_digits_images(image):
-    # Performs image preprocessing.
-    preprocessed_image = prepare_and_binarize_image(image.copy())
-    cv2.imwrite("/tmp/01-preprocessed_image.png", preprocessed_image)
+    # 1. Performs image preprocessing.
+    resized_binarized_image, resized_gray_image = prepare_image(image.copy())
+    cv2.imwrite("/tmp/01-preprocessed_image.png", resized_gray_image)
 
-    # Clear irrelevant regions (such as logo and signatures regions).
-    cleared_image = clear_irrelevant_image_regions(preprocessed_image.copy())
-    cv2.imwrite("/tmp/02-cleared_image.png", cleared_image)
+    # 2. Clear irrelevant regions (such as logo and signatures regions).
+    cleared_binarized_image = clear_irrelevant_image_regions(resized_binarized_image.copy())
+    cleared_gray_image = clear_irrelevant_image_regions(resized_gray_image.copy())
+    cv2.imwrite("/tmp/02-cleared_image.png", cleared_gray_image)
 
-    # Finds relevant rects.
-    image_rects, contour_rects = find_rects_in_image(cleared_image.copy())
+    # 3. Finds relevant rects.
+    image_rects, contour_rects = find_rects_in_image(resized_binarized_image.copy())
     grades_rect = get_tentative_grades_rect(image_rects)
 
-    # Changes, if required and based in the grades rect, the image orientation.
-    reoriented_image, rotated = change_image_orientation_if_required(
-        cleared_image.copy(), grades_rect)
+    # 4. Changes, if required and based in the grades rect, the image
+    # orientation.
+    reoriented_binarized_image, rotated = change_image_orientation_if_required(
+        cleared_binarized_image.copy(), grades_rect)
+    reoriented_gray_image, rotated = change_image_orientation_if_required(
+        cleared_gray_image.copy(), grades_rect)
 
     # If the image has been rotated, recomputes the rects.
     if rotated:
         image_rects, contour_rects = find_rects_in_image(
-            reoriented_image.copy())
+            reoriented_binarized_image.copy())
         grades_rect = get_tentative_grades_rect(image_rects)
-        cv2.imwrite("/tmp/03-reoriented_image.png", reoriented_image)
+        cv2.imwrite("/tmp/03-reoriented_image.png", reoriented_gray_image)
 
-    # Aligns the image, if required.
-    aligned_image, aligned = align_image_if_required(
-        reoriented_image.copy(), contour_rects[0])
+    # 5. Aligns the image, if required.
+    aligned_gray_image, aligned = align_image_if_required(
+        reoriented_gray_image.copy(), contour_rects[0])
+    aligned_binarized_image, aligned = align_image_if_required(
+        reoriented_binarized_image.copy(), contour_rects[0])
 
     # If the image has been aligned, recomputes the rects.
     if aligned:
-        image_rects, contour_rects = find_rects_in_image(aligned_image.copy())
+        image_rects, contour_rects = find_rects_in_image(aligned_binarized_image.copy())
         grades_rect = get_tentative_grades_rect(image_rects)
-        cv2.imwrite("/tmp/04-aligned_image.png", aligned_image)
+        cv2.imwrite("/tmp/04-aligned_image.png", aligned_gray_image)
 
-    # Extracts the grades image, based on the grades rect, and computing the
-    # new grades rect.
-    grades_image, grades_rect = extract_grades_image(
-        aligned_image.copy(), grades_rect)
+    # 6. Extracts the grades image, based on the grades rect. Also, computes
+    # the new grades rect, based on this new image.
+    grades_image, new_grades_rect = extract_grades_image(
+        aligned_gray_image.copy(), grades_rect)
+
+    grades_image_binarized = cv2.threshold(grades_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    kernel = np.ones((3, 3), np.uint8)
+    grades_image_binarized = cv2.erode(grades_image_binarized, kernel)
+
+    grades_rect = new_grades_rect
 
     # Computes cells regions containing the digits.
     cells_rects = compute_digit_cells_rects(grades_rect)
@@ -390,8 +430,24 @@ def extract_digits_images(image):
     cell_rects_image = image_utils.draw_rects(grades_image, cells_rects)
     cv2.imwrite("/tmp/05-grades_image.png", cell_rects_image)
 
-    # Extracts the digits from the cells.
-    cell_contents = extract_cell_contents(grades_image.copy(), cells_rects)
+    # 7. Transforms the 'non-pure white' background into white, while
+    # preserving the original pixel intensity of the content. Note: 'non-pure
+    # white' refers to the gray or yellowing of the image produced by the
+    # scanning process.
+
+    # Uses the binarized grades image to keep only the 'significant' elements
+    # of the image. Note that, at this step, the background is black.
+    grades_image_binarized_not = cv2.bitwise_not(grades_image_binarized)
+    processed_grades_image = cv2.bitwise_or(grades_image, grades_image, mask=grades_image_binarized_not)
+
+    # Replaces the black background of the grades image with a white one.
+    white_background = np.zeros_like(grades_image, dtype=np.uint8)
+    white_background.fill(255)
+    processed_grades_image += cv2.bitwise_and(white_background, white_background, mask=grades_image_binarized)
+    cv2.imwrite("/tmp/06-processed_grades_image.png", processed_grades_image)
+
+    # 8. Extracts the digits from the cells.
+    cell_contents = extract_cell_contents(processed_grades_image.copy(), cells_rects)
 
     # Saves the extracted digits as images, for debugging purposes.
     digits_output_dir = "/tmp/digits"
