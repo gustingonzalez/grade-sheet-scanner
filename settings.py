@@ -3,18 +3,17 @@
 # SCAN_IMAGE_MOCK = None
 SCAN_IMAGE_MOCK = "test/images/image-1.png"
 
-# Parameter to specify a device from which the image will be scanned (this can
-# be obtained with 'scanimage -L'). Note that scanning works without specifying
-# the device, but using this parameter initiates the process earlier.
-# SCAN_DEVICE_PARAMETER = "-d '...'"
-SCAN_DEVICE_PARAMETER = ""
+# Scanning options, such as the scanning device. Note that specifying the
+# device with this parameter initiates the scanning process earlier, but it's
+# optional.
+OPTIONS = ""
 
 # Scanned image output.
 SCANNED_IMAGE_PATH = "/tmp/image.png"
 
 # Command to scan from the flatbed. Note that the 'y' parameter isn't required
 # when the paper size is A4.
-SCAN_COMMAND = f"scanimage --mode=Color --resolution=300 --format=png -o {SCANNED_IMAGE_PATH} {SCAN_DEVICE_PARAMETER}"
+SCAN_COMMAND = f"scanimage --mode=Color --resolution=300 --format=png -o {SCANNED_IMAGE_PATH} {OPTIONS}"
 
 # Command to scan from the ADF. The 'y' parameter is required because, without
 # it, the scanner will add white pixels to complete the image after the end of
