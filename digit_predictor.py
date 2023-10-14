@@ -92,7 +92,7 @@ def prepare_image_for_prediction(image: np.array) -> np.array:
     normalized_image = normalize_image(compatible_image)
 
     # Reshapes the image to fit it into the model.
-    reshaped_image = normalized_image.reshape(1, 84, 84, 1)
+    reshaped_image = normalized_image.reshape(1, model_image_size, model_image_size, 1)
     return reshaped_image
 
 
