@@ -144,13 +144,16 @@ def align_image_if_required(image, rect_contour):
     # are two cases (note: graphing a rectangle for each case is a more visual
     # aid!):
     # 1. y1 < y2: in this scenario, the rectangle is initially oriented to the
-    # left, so the original angle was computed based on the segment (y2, y4).
-    # Then, the alignment must be performed to the right, so the rotation angle
-    # must be computed as 'angle - 90'.
+    # left, so the original angle is computed based on the direction vector on
+    # the segment (y1, y4) and a direction vector starting from 'y3', parallel
+    # aligned and growing with the x-axis. Then, the alignment must be
+    # performed to the right, so the rotation angle must be computed as 'angle
+    # - 90'.
     # 2. y1 > y2: in this case, the rectangle is currently oriented to the
-    # right, so the original angle was computed based on the segment (y1, y3).
-    # So, the alignment must be performed conforming the original angle of the
-    # rectangle.
+    # right, so the original angle is computed based on the direction vector
+    # (y4, y3) and a direction vector starting from 'y1', parallel aligned and
+    # growing with the x-axis. So, the alignment must be performed conforming
+    # the original angle of the rectangle.
 
     # In order to get 'y1' and 'y2', it is required to obtain the vertices,
     # sorting it by their 'x' values.
