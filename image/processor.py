@@ -280,7 +280,6 @@ def extract_content_from_cell(image, cell_rect):
     # 1. Extracts the cell region.
     x, y, width, height = cell_rect
     cell = image[y:y+height, x:x+width]
-
     # 2. Uses an auxiliar version of the cell to get the elements contours.
     aux_cell = cv2.GaussianBlur(cell, (5, 5), 0)
 
@@ -293,7 +292,7 @@ def extract_content_from_cell(image, cell_rect):
     # WARNING: counter-intuitive. Dilates the black elements (presumably
     # digits) of the binarized image, by using a kernel that 'erodes' the white
     # color. This attemps to be more easy to extract the digits.
-    kernel = np.ones((3, 3), np.uint8)
+    kernel = np.ones((5, 5), np.uint8)
     aux_cell = cv2.erode(aux_cell, kernel)
 
     # Finds contours in the auxiliar cell, inverting its colors (the 'find
